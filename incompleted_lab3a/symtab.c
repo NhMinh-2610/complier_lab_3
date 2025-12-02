@@ -1,5 +1,4 @@
-/* 
- * @copyright (c) 2008, Hedspi, Hanoi University of Technology
+/* * @copyright (c) 2008, Hedspi, Hanoi University of Technology
  * @author Huu-Duc Nguyen
  * @version 1.0
  */
@@ -41,29 +40,64 @@ Type* makeArrayType(int arraySize, Type* elementType) {
 }
 
 Type* duplicateType(Type* type) {
-  // TODO
+  Type* newType = (Type*) malloc(sizeof(Type));
+  newType->typeClass = type->typeClass;
+  newType->arraySize = type->arraySize;
+  if (type->elementType != NULL) {
+    newType->elementType = duplicateType(type->elementType);
+  } else {
+    newType->elementType = NULL;
+  }
+  return newType;
 }
 
 int compareType(Type* type1, Type* type2) {
-  // TODO
+  if (type1->typeClass != type2->typeClass) {
+    return 0;
+  }
+  if (type1->typeClass == TP_ARRAY) {
+    if (type1->arraySize != type2->arraySize) {
+      return 0;
+    }
+    return compareType(type1->elementType, type2->elementType);
+  }
+  return 1;
 }
 
 void freeType(Type* type) {
-  // TODO
+  if (type == NULL) return;
+  // Nếu là mảng, cần giải phóng kiểu phần tử bên trong trước (đệ quy)
+  if (type->typeClass == TP_ARRAY) {
+    freeType(type->elementType);
+  }
+  free(type);
 }
 
 /******************* Constant utility ******************************/
 
 ConstantValue* makeIntConstant(int i) {
-  // TODO
+  ConstantValue* value = (ConstantValue*) malloc(sizeof(ConstantValue));
+  value->type = TP_INT;
+  value->intValue = i;
+  return value;
 }
 
 ConstantValue* makeCharConstant(char ch) {
-  // TODO
+  ConstantValue* value = (ConstantValue*) malloc(sizeof(ConstantValue));
+  value->type = TP_CHAR;
+  value->charValue = ch;
+  return value;
 }
 
 ConstantValue* duplicateConstantValue(ConstantValue* v) {
-  // TODO
+  ConstantValue* newValue = (ConstantValue*) malloc(sizeof(ConstantValue));
+  newValue->type = v->type;
+  if (v->type == TP_INT) {
+    newValue->intValue = v->intValue;
+  } else {
+    newValue->charValue = v->charValue;
+  }
+  return newValue;
 }
 
 /******************* Object utilities ******************************/
@@ -88,43 +122,142 @@ Object* createProgramObject(char *programName) {
 }
 
 Object* createConstantObject(char *name) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_CONSTANT;
+  obj->constAttrs = (ConstantAttributes*) malloc(sizeof(ConstantAttributes));
+  obj->constAttrs->value = NULL;
+  return obj;
 }
 
 Object* createTypeObject(char *name) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_TYPE;
+  obj->typeAttrs = (TypeAttributes*) malloc(sizeof(TypeAttributes));
+  obj->typeAttrs->actualType = NULL;
+  return obj;
 }
 
 Object* createVariableObject(char *name) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_VARIABLE;
+  obj->varAttrs = (VariableAttributes*) malloc(sizeof(VariableAttributes));
+  obj->varAttrs->type = NULL;
+  // Biến thuộc về scope hiện tại để dùng cho sinh mã sau này
+  obj->varAttrs->scope = symtab->currentScope;
+  return obj;
 }
 
 Object* createFunctionObject(char *name) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_FUNCTION;
+  obj->funcAttrs = (FunctionAttributes*) malloc(sizeof(FunctionAttributes));
+  obj->funcAttrs->paramList = NULL;
+  obj->funcAttrs->returnType = NULL;
+  // Tạo scope mới cho hàm, owner là chính hàm đó, outer là scope hiện tại
+  obj->funcAttrs->scope = createScope(obj, symtab->currentScope);
+  return obj;
 }
 
 Object* createProcedureObject(char *name) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_PROCEDURE;
+  obj->procAttrs = (ProcedureAttributes*) malloc(sizeof(ProcedureAttributes));
+  obj->procAttrs->paramList = NULL;
+  // Tạo scope mới cho thủ tục
+  obj->procAttrs->scope = createScope(obj, symtab->currentScope);
+  return obj;
 }
 
 Object* createParameterObject(char *name, enum ParamKind kind, Object* owner) {
-  // TODO
+  Object* obj = (Object*) malloc(sizeof(Object));
+  strcpy(obj->name, name);
+  obj->kind = OBJ_PARAMETER;
+  obj->paramAttrs = (ParameterAttributes*) malloc(sizeof(ParameterAttributes));
+  obj->paramAttrs->kind = kind;
+  obj->paramAttrs->type = NULL;
+  obj->paramAttrs->function = owner;
+  return obj;
 }
 
 void freeObject(Object* obj) {
-  // TODO
+  if (obj == NULL) return;
+
+  switch (obj->kind) {
+  case OBJ_CONSTANT:
+    if (obj->constAttrs->value != NULL) {
+        free(obj->constAttrs->value);
+    }
+    free(obj->constAttrs);
+    break;
+  case OBJ_TYPE:
+    if (obj->typeAttrs->actualType != NULL) {
+        freeType(obj->typeAttrs->actualType);
+    }
+    free(obj->typeAttrs);
+    break;
+  case OBJ_VARIABLE:
+    if (obj->varAttrs->type != NULL) {
+        freeType(obj->varAttrs->type);
+    }
+    free(obj->varAttrs);
+    break;
+  case OBJ_FUNCTION:
+    // paramList chỉ là danh sách tham chiếu, các đối tượng thực sự nằm trong scope->objList
+    freeReferenceList(obj->funcAttrs->paramList);
+    if (obj->funcAttrs->returnType != NULL) {
+        freeType(obj->funcAttrs->returnType);
+    }
+    freeScope(obj->funcAttrs->scope);
+    free(obj->funcAttrs);
+    break;
+  case OBJ_PROCEDURE:
+    freeReferenceList(obj->procAttrs->paramList);
+    freeScope(obj->procAttrs->scope);
+    free(obj->procAttrs);
+    break;
+  case OBJ_PROGRAM:
+    freeScope(obj->progAttrs->scope);
+    free(obj->progAttrs);
+    break;
+  case OBJ_PARAMETER:
+    if (obj->paramAttrs->type != NULL) {
+        freeType(obj->paramAttrs->type);
+    }
+    free(obj->paramAttrs);
+    break;
+  }
+  free(obj);
 }
 
 void freeScope(Scope* scope) {
-  // TODO
+  if (scope == NULL) return;
+  freeObjectList(scope->objList);
+  free(scope);
 }
 
 void freeObjectList(ObjectNode *objList) {
-  // TODO
+  ObjectNode *list = objList;
+  while (list != NULL) {
+    ObjectNode *node = list;
+    list = list->next;
+    freeObject(node->object); // Giải phóng đối tượng
+    free(node); // Giải phóng node
+  }
 }
 
 void freeReferenceList(ObjectNode *objList) {
-  // TODO
+  ObjectNode *list = objList;
+  while (list != NULL) {
+    ObjectNode *node = list;
+    list = list->next;
+    // Không giải phóng node->object vì đây chỉ là danh sách tham chiếu
+    free(node); 
+  }
 }
 
 void addObject(ObjectNode **objList, Object* obj) {
@@ -142,7 +275,14 @@ void addObject(ObjectNode **objList, Object* obj) {
 }
 
 Object* findObject(ObjectNode *objList, char *name) {
-  // TODO
+  ObjectNode *node = objList;
+  while (node != NULL) {
+    if (strcmp(node->object->name, name) == 0) {
+      return node->object;
+    }
+    node = node->next;
+  }
+  return NULL;
 }
 
 /******************* others ******************************/
@@ -214,5 +354,3 @@ void declareObject(Object* obj) {
  
   addObject(&(symtab->currentScope->objList), obj);
 }
-
-
