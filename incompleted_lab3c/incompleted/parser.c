@@ -447,6 +447,7 @@ void compileCallSt(void) {
   eat(TK_IDENT);
     // Kiểm tra thủ tục đã khai báo
   proc = checkDeclaredProcedure(currentToken->string);
+  (void)proc;  // Suppress unused warning
   compileArguments();
 }
 
@@ -484,6 +485,7 @@ void compileForSt(void) {
 
   // Kiểm tra định danh là biến
   var = checkDeclaredVariable(currentToken->string);
+  (void)var;  // Suppress unused warning
 
   eat(SB_ASSIGN);
   compileExpression();
