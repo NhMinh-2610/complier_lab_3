@@ -697,6 +697,7 @@ Type* compileExpression3(void) {
     break;
   default:
     error(ERR_INVALID_EXPRESSION, lookAhead->lineNo, lookAhead->colNo);
+    return NULL;
   }
 }
 
